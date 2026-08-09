@@ -152,7 +152,7 @@ def crear_campo(variable: str, metadata: dict):
 
     opciones = config.get("opciones")
     if isinstance(opciones, list) and opciones:
-        return st.selectbox(etiqueta, opciones=opciones, help=ayuda)
+        return st.selectbox(etiqueta, options=opciones, help=ayuda)
 
     if tipo in {"int", "integer", "entero"}:
         minimo = int(config.get("min", 0))
