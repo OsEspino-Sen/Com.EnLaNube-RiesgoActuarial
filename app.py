@@ -1,323 +1,143 @@
-import json
-from pathlib import Path
-
-import joblib
+import os, json, joblib
 import pandas as pd
 import streamlit as st
+from openai import OpenAI
 
+st.set_page_config(page_title='Riesgo actuarial', layout='centered')
+st.title('Predicción de riesgo actuarial-Oscar Noe Espino-PTI-0620')
 
-# ============================================================
-# CONFIGURACIÓN GENERAL
-# ============================================================
-st.set_page_config(
-    page_title="Predicción de riesgo actuarial",
-    page_icon="📊",
-    layout="centered",
-)
-
-st.title("Predicción de riesgo actuarial - Oscar Noe Espino - PTI-0620")
-st.write(
-    "Ingrese los datos solicitados para estimar el nivel de riesgo actuarial."
-)
-
-
-# ============================================================
-# RUTAS DE ARCHIVOS
-# Cambie estos nombres únicamente si sus archivos se llaman distinto.
-# ============================================================
-BASE_DIR = Path(__file__).resolve().parent
-MODEL_PATH = BASE_DIR / "kmeans_riesgo_actuarial.pkl"
-METADATA_PATH = BASE_DIR / "model_metadata.json"
-
-
-# ============================================================
-# FUNCIONES DE CARGA
-# ============================================================
 @st.cache_resource
-def cargar_modelo(ruta: Path):
-    if not ruta.exists():
-        raise FileNotFoundError(
-            f"No se encontró el modelo: {ruta.name}. "
-            "Verifique que esté en la misma carpeta que app.py."
-        )
-    return joblib.load(ruta)
+def cargar_modelo():
+    pkl = 'kmeans_riesgo_actuarial.pkl' if os.path.exists('kmeans_riesgo_actuarial.pkl') else 'kmeans_riesgo_actuarial(2).pkl'
+    meta = 'model_metadata.json' if os.path.exists('model_metadata.json') else 'model_metadata(2).json'
+    
+    modelo = joblib.load(pkl)
 
+    with open(meta, encoding='utf-8') as f:
+        metadata = json.load(f)
+
+    return modelo, metadata
 
 @st.cache_data
-def cargar_metadata(ruta: Path) -> dict:
-    if not ruta.exists():
-        return {}
+def cargar_base():
+    csv = 'insurance.csv' if os.path.exists('insurance.csv') else 'insurance(2).csv'
+    return pd.read_csv(csv)
 
-    with ruta.open("r", encoding="utf-8") as archivo:
-        datos = json.load(archivo)
+modelo, metadata = cargar_modelo()
+df = cargar_base()
 
-    if not isinstance(datos, dict):
-        raise ValueError("metadata.json debe contener un objeto JSON.")
+mapa = {int(k): v for k, v in metadata['mapa_riesgo'].items()}
 
-    return datos
+st.caption(metadata['nombre_modelo'])
 
+with st.form('datos'):
 
-def obtener_variables(modelo, metadata: dict) -> list[str]:
-    """
-    Busca los nombres de variables en metadata.json.
-    Si no aparecen, intenta obtenerlas del modelo de scikit-learn.
-    """
-    claves_posibles = [
-        "variables",
-        "features",
-        "feature_names",
-        "columnas",
-        "campos",
-    ]
+    col1, col2 = st.columns(2)
 
-    for clave in claves_posibles:
-        valor = metadata.get(clave)
-        if isinstance(valor, list) and valor:
-            return [str(x) for x in valor]
+    age = col1.number_input('Edad', 18, 100, 35)
+    sex = col2.selectbox('Sexo', sorted(df['sex'].unique()))
 
-    if hasattr(modelo, "feature_names_in_"):
-        return [str(x) for x in modelo.feature_names_in_]
+    bmi = col1.number_input('BMI', 10.0, 60.0, 28.0)
+    children = col2.number_input('Hijos', 0, 10, 1)
 
-    return []
+    smoker = col1.selectbox('Fumador', sorted(df['smoker'].unique()))
+    region = col2.selectbox('Región', sorted(df['region'].unique()))
 
-
-def obtener_mapa_riesgo(metadata: dict) -> dict:
-    """
-    Evita el KeyError cuando metadata.json no contiene 'mapa_riesgo'.
-    Acepta varios nombres habituales.
-    """
-    claves_posibles = [
-        "mapa_riesgo",
-        "clases",
-        "class_mapping",
-        "mapa_clases",
-        "etiquetas",
-        "labels",
-    ]
-
-    for clave in claves_posibles:
-        valor = metadata.get(clave)
-
-        if isinstance(valor, dict):
-            mapa = {}
-            for k, v in valor.items():
-                try:
-                    clave_convertida = int(k)
-                except (TypeError, ValueError):
-                    clave_convertida = str(k)
-
-                mapa[clave_convertida] = str(v)
-
-            return mapa
-
-        if isinstance(valor, list):
-            return {i: str(etiqueta) for i, etiqueta in enumerate(valor)}
-
-    # Valores predeterminados. Se usan solamente si metadata.json
-    # no incluye ningún mapa de clases.
-    return {
-        0: "Bajo",
-        1: "Medio",
-        2: "Alto",
-    }
-
-
-def obtener_configuracion_variable(metadata: dict, variable: str) -> dict:
-    """
-    Permite configurar cada campo desde metadata.json.
-    Ejemplo:
-    "configuracion_variables": {
-        "edad": {"tipo": "int", "min": 18, "max": 100, "default": 35}
-    }
-    """
-    configuraciones = metadata.get(
-        "configuracion_variables",
-        metadata.get("feature_config", {}),
+    charges = st.number_input(
+        'Cargos médicos estimados',
+        0.0,
+        100000.0,
+        12000.0
     )
 
-    if isinstance(configuraciones, dict):
-        config = configuraciones.get(variable, {})
-        if isinstance(config, dict):
-            return config
+    enviar = st.form_submit_button('Evaluar')
 
-    return {}
-
-
-def crear_campo(variable: str, metadata: dict):
-    config = obtener_configuracion_variable(metadata, variable)
-
-    etiqueta = str(config.get("etiqueta", variable.replace("_", " ").title()))
-    tipo = str(config.get("tipo", "float")).lower()
-    ayuda = config.get("ayuda")
-
-    opciones = config.get("opciones")
-    if isinstance(opciones, list) and opciones:
-        return st.selectbox(etiqueta, options=opciones, help=ayuda)
-
-    if tipo in {"int", "integer", "entero"}:
-        minimo = int(config.get("min", 0))
-        maximo = int(config.get("max", 100))
-        valor = int(config.get("default", minimo))
-        paso = int(config.get("step", 1))
-
-        return st.number_input(
-            etiqueta,
-            min_value=minimo,
-            max_value=maximo,
-            value=valor,
-            step=paso,
-            help=ayuda,
-        )
-
-    if tipo in {"bool", "boolean", "booleano"}:
-        return int(st.checkbox(etiqueta, help=ayuda))
-
-    minimo = float(config.get("min", 0.0))
-    maximo = float(config.get("max", 1_000_000.0))
-    valor = float(config.get("default", minimo))
-    paso = float(config.get("step", 1.0))
-
-    return st.number_input(
-        etiqueta,
-        min_value=minimo,
-        max_value=maximo,
-        value=valor,
-        step=paso,
-        help=ayuda,
-    )
-
-
-def traducir_prediccion(prediccion, mapa: dict) -> str:
-    if prediccion in mapa:
-        return mapa[prediccion]
-
-    texto = str(prediccion)
-
-    if texto in mapa:
-        return mapa[texto]
-
-    try:
-        entero = int(prediccion)
-        if entero in mapa:
-            return mapa[entero]
-    except (TypeError, ValueError):
-        pass
-
-    return texto
-
-
-# ============================================================
-# CARGA DEL MODELO Y LOS METADATOS
-# ============================================================
-try:
-    modelo = cargar_modelo(MODEL_PATH)
-    metadata = cargar_metadata(METADATA_PATH)
-except Exception as error:
-    st.error(f"No fue posible iniciar la aplicación: {error}")
-    st.stop()
-
-
-variables = obtener_variables(modelo, metadata)
-mapa_riesgo = obtener_mapa_riesgo(metadata)
-
-if not variables:
-    st.error(
-        "No fue posible determinar las variables requeridas por el modelo. "
-        "Agregue una lista llamada 'variables' en metadata.json o entrene el "
-        "modelo con nombres de columnas."
-    )
-    st.stop()
-
-
-# ============================================================
-# FORMULARIO
-# ============================================================
-with st.form("formulario_prediccion"):
-    st.subheader("Datos para la predicción")
-
-    valores = {}
-    for variable in variables:
-        valores[variable] = crear_campo(variable, metadata)
-
-    enviar = st.form_submit_button(
-        "Calcular riesgo",
-        type="primary",
-        use_container_width=True,
-    )
-
-
-# ============================================================
-# PREDICCIÓN
-# ============================================================
 if enviar:
-    try:
-        entrada = pd.DataFrame([valores], columns=variables)
-        prediccion = modelo.predict(entrada)[0]
-        nivel = traducir_prediccion(prediccion, mapa_riesgo)
 
-        st.success(f"Nivel de riesgo estimado: {nivel}")
+    cliente = pd.DataFrame([{
+        'age': age,
+        'sex': sex,
+        'bmi': bmi,
+        'children': children,
+        'smoker': smoker,
+        'region': region,
+        'charges': charges
+    }])
 
-        if hasattr(modelo, "predict_proba"):
-            probabilidades = modelo.predict_proba(entrada)[0]
-            clases = getattr(
-                modelo,
-                "classes_",
-                list(range(len(probabilidades))),
-            )
+    cluster = int(modelo.predict(cliente)[0])
 
-            tabla = pd.DataFrame(
-                {
-                    "Nivel": [
-                        traducir_prediccion(clase, mapa_riesgo)
-                        for clase in clases
-                    ],
-                    "Probabilidad": probabilidades,
-                }
-            )
+    riesgo = mapa.get(cluster, 'No definido')
 
-            tabla["Probabilidad"] = tabla["Probabilidad"].map(
-                lambda x: f"{x:.2%}"
-            )
+    st.subheader(f'Riesgo actuarial: {riesgo}')
+    st.write(f'Cluster asignado: {cluster}')
 
-            st.subheader("Probabilidades")
-            st.dataframe(
-                tabla,
-                hide_index=True,
-                use_container_width=True,
-            )
-
-        with st.expander("Datos enviados al modelo"):
-            st.dataframe(
-                entrada,
-                hide_index=True,
-                use_container_width=True,
-            )
-
-    except Exception as error:
-        st.error(f"No fue posible realizar la predicción: {error}")
-        st.info(
-            "Revise que las variables, el orden de las columnas y los tipos "
-            "de datos coincidan con los utilizados durante el entrenamiento."
-        )
-
-
-# ============================================================
-# INFORMACIÓN TÉCNICA
-# ============================================================
-with st.sidebar:
-    st.header("Información")
-
-    st.write(f"Modelo: `{MODEL_PATH.name}`")
-
-    if METADATA_PATH.exists():
-        st.write(f"Metadatos: `{METADATA_PATH.name}`")
-    else:
-        st.warning(
-            "No se encontró metadata.json. La aplicación está usando "
-            "configuraciones predeterminadas."
-        )
-
-    st.caption(
-        "El resultado es una estimación del modelo y debe interpretarse "
-        "junto con criterios técnicos y actuariales."
+    api_key = st.secrets.get(
+        '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',
+        os.getenv('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', '')
     )
+
+    if api_key:
+
+        prompt = f'''
+        Actúa como analista actuarial.
+
+        Explica brevemente el resultado y brinda
+        3 recomendaciones prudentes.
+
+        Datos:
+        edad={age}
+        sexo={sex}
+        bmi={bmi}
+        hijos={children}
+        fumador={smoker}
+        región={region}
+        cargos={charges}
+
+        Resultado:
+        cluster={cluster}
+        riesgo={riesgo}
+        '''
+
+        try:
+
+            client = OpenAI(
+                api_key=api_key,
+                base_url="https://api.groq.com/openai/v1"
+            )
+
+            respuesta = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Eres un asesor actuarial profesional."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
+
+            texto = respuesta.choices[0].message.content
+
+            st.info(texto)
+
+        except Exception as e:
+
+            st.warning(f'Error con Groq: {e}')
+
+    else:
+
+        st.warning(
+            'GROQ_API_KEY="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"'
+        )
+
+st.divider()
+
+st.write('Vista rápida de la base principal')
+
+st.dataframe(
+    df.head(20),
+    use_container_width=True
+)
