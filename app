@@ -15,7 +15,7 @@ st.set_page_config(
     layout="centered",
 )
 
-st.title("Predicción de riesgo actuarial - NahunFlores PTI-0620")
+st.title("Predicción de riesgo actuarial - Oscar Noe Espino - PTI-0620")
 st.write(
     "Ingrese los datos solicitados para estimar el nivel de riesgo actuarial."
 )
