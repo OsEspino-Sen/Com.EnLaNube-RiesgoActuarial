@@ -1,0 +1,38 @@
+{
+    "proyecto": "Riesgo actuarial con K-means y SVM",
+    "kmeans": {
+        "n_clusters": 3,
+        "silhouette": 0.178,
+        "mapa_riesgo": {
+            "1": "Bajo",
+            "2": "Medio",
+            "0": "Alto"
+        }
+    },
+    "svm": {
+        "mejores_parametros": {
+            "svm__C": 10,
+            "svm__degree": 2,
+            "svm__gamma": "scale",
+            "svm__kernel": "poly"
+        },
+        "accuracy_test": 0.9224
+    },
+    "features_kmeans": [
+        "age",
+        "bmi",
+        "children",
+        "charges",
+        "sex",
+        "smoker",
+        "region"
+    ],
+    "features_svm": [
+        "age",
+        "bmi",
+        "children",
+        "sex",
+        "smoker",
+        "region"
+    ]
+}
