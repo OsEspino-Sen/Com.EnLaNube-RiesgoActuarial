@@ -26,9 +26,55 @@ def cargar_base():
 modelo, metadata = cargar_modelo()
 df = cargar_base()
 
-mapa = {int(k): v for k, v in metadata['mapa_riesgo'].items()}
 
-st.caption(metadata['nombre_modelo'])
+def obtener_mapa_riesgo(metadata: dict) -> dict:
+    """Busca el mapa de riesgo en varias ubicaciones comunes del archivo de metadatos.
+
+    Soporta mapas como diccionarios (con claves numéricas o strings) o listas
+    (se convierten a mapeos por índice). Devuelve un mapa por defecto si no
+    se encuentra ninguno.
+    """
+    claves_posibles = [
+        'mapa_riesgo',
+        'mapa_clases',
+        'clases',
+        'class_mapping',
+        'etiquetas',
+        'labels',
+    ]
+
+    # Buscar en el nivel superior y dentro de secciones habituales
+    for clave in claves_posibles:
+        valor = metadata.get(clave)
+
+        if valor is None:
+            for padre in ('kmeans', 'svm'):
+                padre_dict = metadata.get(padre)
+                if isinstance(padre_dict, dict):
+                    valor = padre_dict.get(clave)
+                    if valor is not None:
+                        break
+
+        if isinstance(valor, dict):
+            mapa = {}
+            for k, v in valor.items():
+                try:
+                    clave_convertida = int(k)
+                except (TypeError, ValueError):
+                    clave_convertida = str(k)
+                mapa[clave_convertida] = str(v)
+            return mapa
+
+        if isinstance(valor, list):
+            return {i: str(etiqueta) for i, etiqueta in enumerate(valor)}
+
+    # Predeterminado si no se encuentra
+    return {0: 'Bajo', 1: 'Medio', 2: 'Alto'}
+
+
+mapa = obtener_mapa_riesgo(metadata)
+
+st.caption(metadata.get('nombre_modelo', metadata.get('proyecto', '')))
 
 with st.form('datos'):
 
