@@ -1,38 +1,52 @@
 {
-    "proyecto": "Riesgo actuarial con K-means y SVM",
-    "kmeans": {
-        "n_clusters": 3,
-        "silhouette": 0.178,
-        "mapa_riesgo": {
-            "1": "Bajo",
-            "2": "Medio",
-            "0": "Alto"
-        }
+  "mapa_riesgo": {
+    "0": "Bajo",
+    "1": "Medio",
+    "2": "Alto"
+  },
+  "configuracion_variables": {
+    "age": {
+      "tipo": "int",
+      "min": 18,
+      "max": 100,
+      "default": 35,
+      "etiqueta": "Edad"
     },
-    "svm": {
-        "mejores_parametros": {
-            "svm__C": 10,
-            "svm__degree": 2,
-            "svm__gamma": "scale",
-            "svm__kernel": "poly"
-        },
-        "accuracy_test": 0.9224
+    "bmi": {
+      "tipo": "float",
+      "min": 10.0,
+      "max": 60.0,
+      "default": 25.0,
+      "etiqueta": "Índice de Masa Corporal (IMC)"
     },
-    "features_kmeans": [
-        "age",
-        "bmi",
-        "children",
-        "charges",
-        "sex",
-        "smoker",
-        "region"
-    ],
-    "features_svm": [
-        "age",
-        "bmi",
-        "children",
-        "sex",
-        "smoker",
-        "region"
-    ]
+    "children": {
+      "tipo": "int",
+      "min": 0,
+      "max": 10,
+      "default": 0,
+      "etiqueta": "Número de hijos"
+    },
+    "charges": {
+      "tipo": "float",
+      "min": 1000.0,
+      "max": 100000.0,
+      "default": 10000.0,
+      "etiqueta": "Cargos médicos"
+    },
+    "sex": {
+      "tipo": "cat",
+      "etiqueta": "Género",
+      "opciones": ["female", "male"]
+    },
+    "smoker": {
+      "tipo": "cat",
+      "etiqueta": "¿Es fumador/a?",
+      "opciones": ["no", "yes"]
+    },
+    "region": {
+      "tipo": "cat",
+      "etiqueta": "Región de residencia",
+      "opciones": ["southeast", "southwest", "northeast", "northwest"]
+    }
+  }
 }
