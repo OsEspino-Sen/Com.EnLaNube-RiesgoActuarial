@@ -15,7 +15,7 @@ st.set_page_config(
     layout="centered",
 )
 
-st.title("Predicción de riesgo actuarial - NahunFlores PTI-0620")
+st.title("Predicción de riesgo actuarial - Oscar Noe Espino - PTI-0620")
 st.write(
     "Ingrese los datos solicitados para estimar el nivel de riesgo actuarial."
 )
@@ -26,8 +26,8 @@ st.write(
 # Cambie estos nombres únicamente si sus archivos se llaman distinto.
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_PATH = BASE_DIR / "modelo.joblib"
-METADATA_PATH = BASE_DIR / "metadata.json"
+MODEL_PATH = BASE_DIR / "kmeans_riesgo_actuarial.pkl"
+METADATA_PATH = BASE_DIR / "model_metadata.json"
 
 
 # ============================================================
